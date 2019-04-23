@@ -12,3 +12,11 @@ test = false
 bench = false
 
 [dependencies]
+plist = "*"
+reqwest = "*"
+semver = "*"
+serde = "1"
+serde_derive = "1"
+
+[dependencies.bitbar]
+git = "https://github.com/fenhl/rust-bitbar"
