@@ -69,10 +69,7 @@ fn bitbar() -> Result<Menu, Error> {
             MenuItem::Sep,
             MenuItem::new(format!("BitBar {} available", latest)),
             MenuItem::new(format!("You have {}", current)),
-            ContentItem::new("Install using `brew cask reinstall bitbar`").command(bitbar::Command {
-                args: vec!["brew".into(), "cask".into(), "reinstall".into(), "bitbar".into()],
-                terminal: true
-            }).into()
+            ContentItem::new("Install using `brew cask reinstall bitbar`").command(bitbar::Command::terminal(["brew", "cask", "reinstall", "bitbar"])).into()
         ])
     } else {
         Menu::default()
