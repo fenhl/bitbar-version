@@ -7,16 +7,18 @@ edition = "2018"
 [[bin]]
 name = "bitbar-version"
 path = "src/main.rs"
-doc = false
 test = false
 bench = false
 
 [dependencies]
-plist = "*"
-reqwest = "*"
-semver = "*"
-serde = "1"
-serde_derive = "1"
+plist = "0.5"
+reqwest = "0.9" #TODO upgrade to 0.10 and rework to use async
+semver = "0.9"
 
 [dependencies.bitbar]
-git = "https://github.com/fenhl/rust-bitbar"
+version = "0.3"
+features = ["base64"]
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
