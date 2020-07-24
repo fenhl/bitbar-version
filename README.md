@@ -2,10 +2,16 @@ This is a [BitBar](https://getbitbar.com/) plugin that checks for available BitB
 
 # Installation
 
-1. [Install Rust](https://www.rust-lang.org/tools/install)
-2. Run `cargo install --git=https://github.com/fenhl/bitbar-version`
-3. Symlink the file `~/.cargo/bin/bitbar-version` into your BitBar plugin directory. Call it something like `bitbar-version.2m.o`, where `2m` is the rate of update checks.
-4. Refresh BitBar by opening a menu and pressing <kbd>⌘</kbd><kbd>R</kbd>
+1. [Install BitBar](https://getbitbar.com/).
+    * If you have [Homebrew](https://brew.sh/), you can also install with `brew cask install bitbar`.
+2. [Install Rust](https://www.rust-lang.org/tools/install).
+    * If you have Homebrew, you can also install with `brew install rust`.
+3. Install the plugin:
+    ```sh
+    cargo install --git=https://github.com/fenhl/bitbar-version
+    ```
+4. Create a symlink to `~/.cargo/bin/bitbar-version` into your BitBar plugin folder. Call it something like `bitbar-version.2m.o`, where `2m` is the rate of update checks.
+5. Refresh BitBar by opening a menu and pressing <kbd>⌘</kbd><kbd>R</kbd>.
 
 # Notes
 
