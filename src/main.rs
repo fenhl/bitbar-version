@@ -1,53 +1,64 @@
-#![deny(rust_2018_idioms, unused, unused_import_braces, unused_qualifications, warnings)]
+#![deny(rust_2018_idioms, unused, unused_import_braces, unused_lifetimes, unused_qualifications, warnings)]
 
 use {
     std::convert::{
-        Infallible,
+        Infallible as Never,
         TryFrom,
-        TryInto
+        TryInto,
     },
     bitbar::{
         ContentItem,
         Menu,
-        MenuItem
+        MenuItem,
     },
+    derive_more::From,
     semver::{
         SemVerError,
-        Version
+        Version,
     },
-    serde::Deserialize
+    serde::Deserialize,
 };
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 enum Error {
     InvalidPlist,
     NoLeadingV,
     Plist(plist::Error),
     Reqwest(reqwest::Error),
-    SemVer(SemVerError)
+    SemVer(SemVerError),
 }
 
-impl From<plist::Error> for Error {
-    fn from(e: plist::Error) -> Error {
-        Error::Plist(e)
-    }
-}
-
-impl From<reqwest::Error> for Error {
-    fn from(e: reqwest::Error) -> Error {
-        Error::Reqwest(e)
-    }
-}
-
-impl From<SemVerError> for Error {
-    fn from(e: SemVerError) -> Error {
-        Error::SemVer(e)
+impl From<Error> for Menu {
+    fn from(e: Error) -> Menu {
+        let mut menu = Vec::default();
+        match e {
+            Error::InvalidPlist => menu.push(MenuItem::new("failed to read current BitBar version")),
+            Error::NoLeadingV => menu.push(MenuItem::new("latest GitHub release does not include version number")),
+            Error::Plist(e) => {
+                menu.push(MenuItem::new(format!("error reading plist: {}", e)));
+                menu.push(MenuItem::new(format!("{:?}", e)));
+            }
+            Error::Reqwest(e) => {
+                menu.push(MenuItem::new(format!("reqwest error: {}", e)));
+                if let Some(url) = e.url() {
+                    menu.push(ContentItem::new(format!("URL: {}", url))
+                        .href(url.clone()).expect("failed to parse the request error URL")
+                        .color("blue").expect("failed to parse the color blue")
+                        .into());
+                }
+            }
+            Error::SemVer(e) => {
+                menu.push(MenuItem::new(format!("error parsing version: {}", e)));
+                menu.push(MenuItem::new(format!("{:?}", e)));
+            }
+        }
+        Menu(menu)
     }
 }
 
 #[derive(Deserialize)]
 struct Release {
-    tag_name: String
+    tag_name: String,
 }
 
 impl TryFrom<Release> for Version {
@@ -65,7 +76,7 @@ trait ResultNeverExt {
     fn never_unwrap(self) -> Self::Ok;
 }
 
-impl<T> ResultNeverExt for Result<T, Infallible> {
+impl<T> ResultNeverExt for Result<T, Never> {
     type Ok = T;
 
     fn never_unwrap(self) -> T {
@@ -74,22 +85,6 @@ impl<T> ResultNeverExt for Result<T, Infallible> {
             Err(never) => match never {}
         }
     }
-}
-
-fn bitbar() -> Result<Menu, Error> {
-    let latest = latest_version()?;
-    let current = current_version()?;
-    Ok(if current < latest {
-        Menu(vec![
-            ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
-            MenuItem::Sep,
-            MenuItem::new(format!("BitBar {} available", latest)),
-            MenuItem::new(format!("You have {}", current)),
-            ContentItem::new("Install using `brew cask reinstall bitbar`").command(bitbar::Command::terminal(["brew", "cask", "reinstall", "bitbar"])).into()
-        ])
-    } else {
-        Menu::default()
-    })
 }
 
 fn current_version() -> Result<Version, Error> {
@@ -102,22 +97,30 @@ fn current_version() -> Result<Version, Error> {
     )
 }
 
-fn latest_version() -> Result<Version, Error> {
-    reqwest::get("https://api.github.com/repos/matryer/bitbar/releases/latest")?
+async fn latest_version() -> Result<Version, Error> {
+    reqwest::Client::builder()
+        .user_agent(concat!("fenhl/bitbar-version/", env!("CARGO_PKG_VERSION")))
+        .build()?
+        .get("https://api.github.com/repos/matryer/bitbar/releases/latest")
+        .send().await?
         .error_for_status()?
-        .json::<Release>()?
+        .json::<Release>().await?
         .try_into()
 }
 
-fn main() {
-    match bitbar() {
-        Ok(menu) => { print!("{}", menu); }
-        Err(e) => {
-            print!("{}", Menu(vec![
-                ContentItem::new("?").template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
-                MenuItem::Sep,
-                MenuItem::new(format!("{:?}", e))
-            ]));
-        }
-    }
+#[bitbar::main(error_template_image = "../assets/logo.png")]
+async fn main() -> Result<Menu, Error> {
+    let latest = latest_version().await?;
+    let current = current_version()?;
+    Ok(if current < latest {
+        Menu(vec![
+            ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
+            MenuItem::Sep,
+            MenuItem::new(format!("BitBar {} available", latest)),
+            MenuItem::new(format!("You have {}", current)),
+            ContentItem::new("Install using `brew reinstall --cask bitbar`").command(bitbar::Command::terminal(["brew", "reinstall", "--cask", "bitbar"])).into()
+        ])
+    } else {
+        Menu::default()
+    })
 }

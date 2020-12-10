@@ -3,7 +3,7 @@ This is a [BitBar](https://getbitbar.com/) plugin that checks for available BitB
 # Installation
 
 1. [Install BitBar](https://getbitbar.com/).
-    * If you have [Homebrew](https://brew.sh/), you can also install with `brew cask install bitbar`.
+    * If you have [Homebrew](https://brew.sh/), you can also install with `brew install --cask bitbar`.
 2. [Install Rust](https://www.rust-lang.org/tools/install).
     * If you have Homebrew, you can also install with `brew install rust`.
 3. Install the plugin:
