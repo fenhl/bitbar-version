@@ -8,7 +8,7 @@ This is a [BitBar](https://getbitbar.com/) plugin that checks for available BitB
     * If you have Homebrew, you can also install with `brew install rust`.
 3. Install the plugin:
     ```sh
-    cargo install --git=https://github.com/fenhl/bitbar-version
+    cargo install --git=https://github.com/fenhl/bitbar-version --branch=main
     ```
 4. Create a symlink to `~/.cargo/bin/bitbar-version` into your BitBar plugin folder. Call it something like `bitbar-version.2m.o`, where `2m` is the rate of update checks.
 5. Refresh BitBar by opening a menu and pressing <kbd>⌘</kbd><kbd>R</kbd>.
