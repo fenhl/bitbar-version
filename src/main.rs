@@ -187,7 +187,7 @@ async fn main() -> Result<Menu, Error> {
             menu.push(MenuItem::new(format!("Homebrew has {}", homebrew)));
         }
         if homebrew > current {
-            menu.push(ContentItem::new("Install using `brew reinstall --cask bitbar`").command(bitbar::Command::terminal(("brew", "reinstall", "--cask", "bitbar"))).into());
+            menu.push(ContentItem::new("Install using `brew upgrade --cask bitbar`").command(bitbar::Command::terminal(("brew", "upgrade", "--cask", "bitbar"))).into());
         }
         if homebrew < latest {
             menu.push(ContentItem::new("Send Pull Request to Homebrew").command(bitbar::Command::terminal(("brew", "bump-cask-pr", "--version", latest, "bitbar"))).into());
