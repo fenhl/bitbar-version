@@ -7,7 +7,10 @@ use {
             TryFrom,
             TryInto,
         },
-        env::current_exe,
+        env::{
+            self,
+            current_exe,
+        },
         ffi::OsString,
         fmt,
         io,
@@ -31,6 +34,7 @@ mod data;
 
 #[derive(Debug, From)]
 enum Error {
+    Env(env::VarError),
     Io(io::Error),
     Json(serde_json::Error),
     NoLeadingV,
@@ -43,6 +47,7 @@ impl From<Error> for Menu {
     fn from(e: Error) -> Menu {
         let mut menu = Vec::default();
         match e {
+            Error::Env(e) => menu.push(MenuItem::new(e)),
             Error::Io(e) => {
                 menu.push(MenuItem::new(format!("I/O error: {}", e)));
                 menu.push(MenuItem::new(format!("{:?}", e)));
@@ -116,23 +121,46 @@ impl<T> ResultNeverExt for Result<T, Never> {
     }
 }
 
-fn current_version() -> Result<Version, Error> {
-    let plist = plist::from_file::<_, Plist>("/Applications/BitBar.app/Contents/Info.plist")?;
+fn running_version() -> Result<Version, Error> {
+    if env::var_os("SWIFTBAR").is_some() {
+        Ok(env::var("SWIFTBAR_VERSION")?.parse()?)
+    } else {
+        // BitBar does not provide running version info, assume same as installed
+        installed_version()
+    }
+}
+
+fn installed_version() -> Result<Version, Error> {
+    let plist = if env::var_os("SWIFTBAR").is_some() {
+        plist::from_file::<_, Plist>("/Applications/SwiftBar.app/Contents/Info.plist")?
+    } else {
+        plist::from_file::<_, Plist>("/Applications/BitBar.app/Contents/Info.plist")?
+    };
     Ok(plist.bundle_version)
 }
 
 async fn homebrew_version(client: &reqwest::Client) -> Result<Version, Error> {
-    Ok(client
-        .get("https://formulae.brew.sh/api/cask/bitbar.json")
-        .send().await?
-        .error_for_status()?
-        .json::<BrewCask>().await?
-        .version)
+    if env::var_os("SWIFTBAR").is_some() {
+        // SwiftBar is not on Homebrew yet
+        //TODO update once SwiftBar is on Homebrew
+        Ok(Version::new(0, 0, 0))
+    } else {
+        Ok(client
+            .get("https://formulae.brew.sh/api/cask/bitbar.json")
+            .send().await?
+            .error_for_status()?
+            .json::<BrewCask>().await?
+            .version)
+    }
 }
 
 async fn latest_version(client: &reqwest::Client) -> Result<Version, Error> {
     client
-        .get("https://api.github.com/repos/matryer/bitbar/releases/latest")
+        .get(if env::var_os("SWIFTBAR").is_some() {
+            "https://api.github.com/repos/swiftbar/SwiftBar/releases/latest"
+        } else {
+            "https://api.github.com/repos/matryer/bitbar/releases/latest"
+        })
         .send().await?
         .error_for_status()?
         .json::<Release>().await?
@@ -175,26 +203,40 @@ async fn main() -> Result<Menu, Error> {
         .build()?;
     let latest = latest_version(&client).await?;
     let homebrew = homebrew_version(&client).await?;
-    let current = current_version()?;
-    Ok(if current < latest && Data::new()?.hide_until_homebrew_gt.map_or(true, |min_ver| homebrew > min_ver) {
-        let mut menu = vec![
-            ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
-            MenuItem::Sep,
-            MenuItem::new(format!("BitBar {} available", latest)),
-            MenuItem::new(format!("You have {}", current)),
-        ];
-        if homebrew < latest {
-            menu.push(MenuItem::new(format!("Homebrew has {}", homebrew)));
+    let installed = installed_version()?;
+    let running = running_version()?;
+    Ok(if running < latest && Data::new()?.hide_until_homebrew_gt.map_or(true, |min_ver| homebrew > min_ver) {
+        if installed < latest {
+            let mut menu = vec![
+                ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
+                MenuItem::Sep,
+                MenuItem::new(format!("BitBar {} available", latest)),
+                MenuItem::new(format!("You have {}", running)),
+            ];
+            if env::var_os("SWIFTBAR").is_none() && homebrew < latest { //TODO also enable for SwiftBar once that is on Homebrew
+                menu.push(MenuItem::new(format!("Homebrew has {}", homebrew)));
+            }
+            if homebrew > installed {
+                menu.push(ContentItem::new("Install using `brew upgrade --cask bitbar`").command(bitbar::Command::terminal(("brew", "upgrade", "--cask", "bitbar"))).into());
+            }
+            if homebrew < latest {
+                if env::var_os("SWIFTBAR").is_none() { //TODO also enable for SwiftBar once that is on Homebrew
+                    menu.push(ContentItem::new("Send Pull Request to Homebrew").command(bitbar::Command::terminal(("brew", "bump-cask-pr", "--version", latest, "bitbar"))).into());
+                }
+                menu.push(ContentItem::new("Open GitHub Release").href("https://github.com/matryer/bitbar/releases/latest").expect("failed to parse GitHub latest release URL").into());
+                if env::var_os("SWIFTBAR").is_none() { //TODO also enable for SwiftBar once that is on Homebrew
+                    menu.push(ContentItem::new("Hide Until Homebrew Is Updated").command((current_exe.display(), "hide_until_homebrew_gt", homebrew)).into());
+                }
+            }
+            Menu(menu)
+        } else {
+            Menu(vec![
+                ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
+                MenuItem::Sep,
+                MenuItem::new(format!("Restart to update to BitBar {}", installed)),
+                MenuItem::new(format!("Currently running: {}", running)),
+            ])
         }
-        if homebrew > current {
-            menu.push(ContentItem::new("Install using `brew upgrade --cask bitbar`").command(bitbar::Command::terminal(("brew", "upgrade", "--cask", "bitbar"))).into());
-        }
-        if homebrew < latest {
-            menu.push(ContentItem::new("Send Pull Request to Homebrew").command(bitbar::Command::terminal(("brew", "bump-cask-pr", "--version", latest, "bitbar"))).into());
-            menu.push(ContentItem::new("Open GitHub Release").href("https://github.com/matryer/bitbar/releases/latest").expect("failed to parse GitHub latest release URL").into());
-            menu.push(ContentItem::new("Hide Until Homebrew Is Updated").command((current_exe.display(), "hide_until_homebrew_gt", homebrew)).into());
-        }
-        Menu(menu)
     } else {
         Menu::default()
     })

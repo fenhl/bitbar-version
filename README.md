@@ -17,3 +17,4 @@ This is a [BitBar](https://getbitbar.com/) plugin that checks for available BitB
 
 * This plugin assumes that you have installed BitBar to `/Applications/BitBar.app`.
 * The plugin only actually appears in the menu bar when an update is available or if there was an error during the most recent check. When your BitBar is up to date, the plugin is completely hidden.
+* The plugin also works with [SwiftBar](https://swiftbar.app/).
