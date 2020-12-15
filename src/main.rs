@@ -121,8 +121,12 @@ impl<T> ResultNeverExt for Result<T, Never> {
     }
 }
 
+fn is_swiftbar() -> bool {
+    env::var_os("SWIFTBAR").is_some()
+}
+
 fn running_version() -> Result<Version, Error> {
-    if env::var_os("SWIFTBAR").is_some() {
+    if is_swiftbar() {
         Ok(env::var("SWIFTBAR_VERSION")?.parse()?)
     } else {
         // BitBar does not provide running version info, assume same as installed
@@ -131,7 +135,7 @@ fn running_version() -> Result<Version, Error> {
 }
 
 fn installed_version() -> Result<Version, Error> {
-    let plist = if env::var_os("SWIFTBAR").is_some() {
+    let plist = if is_swiftbar() {
         plist::from_file::<_, Plist>("/Applications/SwiftBar.app/Contents/Info.plist")?
     } else {
         plist::from_file::<_, Plist>("/Applications/BitBar.app/Contents/Info.plist")?
@@ -140,7 +144,7 @@ fn installed_version() -> Result<Version, Error> {
 }
 
 async fn homebrew_version(client: &reqwest::Client) -> Result<Version, Error> {
-    if env::var_os("SWIFTBAR").is_some() {
+    if is_swiftbar() {
         // SwiftBar is not on Homebrew yet
         //TODO update once SwiftBar is on Homebrew
         Ok(Version::new(0, 0, 0))
@@ -156,7 +160,7 @@ async fn homebrew_version(client: &reqwest::Client) -> Result<Version, Error> {
 
 async fn latest_version(client: &reqwest::Client) -> Result<Version, Error> {
     client
-        .get(if env::var_os("SWIFTBAR").is_some() {
+        .get(if is_swiftbar() {
             "https://api.github.com/repos/swiftbar/SwiftBar/releases/latest"
         } else {
             "https://api.github.com/repos/matryer/bitbar/releases/latest"
@@ -210,21 +214,21 @@ async fn main() -> Result<Menu, Error> {
             let mut menu = vec![
                 ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
                 MenuItem::Sep,
-                MenuItem::new(format!("BitBar {} available", latest)),
+                MenuItem::new(format!("{} {} available", if is_swiftbar() { "SwiftBar" } else { "BitBar" }, latest)),
                 MenuItem::new(format!("You have {}", running)),
             ];
-            if env::var_os("SWIFTBAR").is_none() && homebrew < latest { //TODO also enable for SwiftBar once that is on Homebrew
+            if !is_swiftbar() && homebrew < latest { //TODO also enable for SwiftBar once that is on Homebrew
                 menu.push(MenuItem::new(format!("Homebrew has {}", homebrew)));
             }
             if homebrew > installed {
                 menu.push(ContentItem::new("Install using `brew upgrade --cask bitbar`").command(bitbar::Command::terminal(("brew", "upgrade", "--cask", "bitbar"))).into());
             }
             if homebrew < latest {
-                if env::var_os("SWIFTBAR").is_none() { //TODO also enable for SwiftBar once that is on Homebrew
+                if !is_swiftbar() { //TODO also enable for SwiftBar once that is on Homebrew
                     menu.push(ContentItem::new("Send Pull Request to Homebrew").command(bitbar::Command::terminal(("brew", "bump-cask-pr", "--version", latest, "bitbar"))).into());
                 }
                 menu.push(ContentItem::new("Open GitHub Release").href("https://github.com/matryer/bitbar/releases/latest").expect("failed to parse GitHub latest release URL").into());
-                if env::var_os("SWIFTBAR").is_none() { //TODO also enable for SwiftBar once that is on Homebrew
+                if !is_swiftbar() { //TODO also enable for SwiftBar once that is on Homebrew
                     menu.push(ContentItem::new("Hide Until Homebrew Is Updated").command((current_exe.display(), "hide_until_homebrew_gt", homebrew)).into());
                 }
             }
@@ -233,7 +237,7 @@ async fn main() -> Result<Menu, Error> {
             Menu(vec![
                 ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
                 MenuItem::Sep,
-                MenuItem::new(format!("Restart to update to BitBar {}", installed)),
+                MenuItem::new(format!("Restart to update to {} {}", if is_swiftbar() { "SwiftBar" } else { "BitBar" }, installed)),
                 MenuItem::new(format!("Currently running: {}", running)),
             ])
         }
