@@ -100,8 +100,8 @@ struct BrewCask {
 
 #[derive(Deserialize)]
 struct Plist {
-    #[serde(rename = "CFBundleVersion")]
-    bundle_version: Version,
+    #[serde(rename = "CFBundleShortVersionString")]
+    bundle_short_version_string: Version,
 }
 
 trait ResultNeverExt {
@@ -140,7 +140,7 @@ fn installed_version() -> Result<Version, Error> {
     } else {
         plist::from_file::<_, Plist>("/Applications/BitBar.app/Contents/Info.plist")?
     };
-    Ok(plist.bundle_version)
+    Ok(plist.bundle_short_version_string)
 }
 
 async fn homebrew_version(client: &reqwest::Client) -> Result<Version, Error> {
