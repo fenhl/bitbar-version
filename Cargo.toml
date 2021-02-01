@@ -13,7 +13,7 @@ xdg-basedir = "1"
 [dependencies.bitbar]
 version = "0.4"
 default-features = false
-features = ["base64", "tokio02"] #TODO update to tokio 0.3 once supported by reqwest
+features = ["base64", "tokio02"] #TODO update to tokio 1 once supported by bitbar and reqwest
 
 [dependencies.derive_more]
 version = "0.99"
