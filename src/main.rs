@@ -227,7 +227,11 @@ async fn main() -> Result<Menu, Error> {
                 if !is_swiftbar() { //TODO also enable for SwiftBar once that is on Homebrew
                     menu.push(ContentItem::new("Send Pull Request to Homebrew").command(bitbar::Command::terminal(("brew", "bump-cask-pr", "--version", latest, "bitbar"))).into());
                 }
-                menu.push(ContentItem::new("Open GitHub Release").href("https://github.com/matryer/bitbar/releases/latest").expect("failed to parse GitHub latest release URL").into());
+                menu.push(ContentItem::new("Open GitHub Release").href(if is_swiftbar() {
+                    "https://api.github.com/repos/swiftbar/SwiftBar/releases/latest"
+                } else {
+                    "https://api.github.com/repos/matryer/bitbar/releases/latest"
+                }).expect("failed to parse GitHub latest release URL").into());
                 if !is_swiftbar() { //TODO also enable for SwiftBar once that is on Homebrew
                     menu.push(ContentItem::new("Hide Until Homebrew Is Updated").command((current_exe.display(), "hide_until_homebrew_gt", homebrew)).into());
                 }
