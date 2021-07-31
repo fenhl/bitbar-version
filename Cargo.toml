@@ -4,6 +4,14 @@ version = "0.1.7"
 authors = ["Fenhl <fenhl@fenhl.net>"]
 edition = "2018"
 
+[build-dependencies]
+git2 = "0.13"
+
+[build-dependencies.derive_more]
+version = "0.99"
+default-features = false
+features = ["from"]
+
 [dependencies]
 itertools = "0.9"
 plist = "1"

@@ -1,12 +1,9 @@
-#![deny(rust_2018_idioms, unused, unused_import_braces, unused_lifetimes, unused_qualifications, warnings)]
+#![deny(rust_2018_idioms, unused, unused_crate_dependencies, unused_import_braces, unused_lifetimes, unused_qualifications, warnings)]
+#![forbid(unsafe_code)]
 
 use {
     std::{
-        convert::{
-            Infallible as Never,
-            TryFrom,
-            TryInto,
-        },
+        convert::Infallible as Never,
         env::current_exe,
         ffi::OsString,
         fmt,
@@ -23,17 +20,23 @@ use {
     itertools::Itertools as _,
     semver::Version,
     serde::Deserialize,
-    crate::data::Data,
+    crate::{
+        data::Data,
+        github::Repo,
+    },
 };
 
 mod data;
+mod github;
+mod version;
 
 #[derive(Debug, From)]
 enum Error {
     Io(io::Error),
     Json(serde_json::Error),
-    NoLeadingV,
+    NoReleases(&'static str),
     Plist(plist::Error),
+    ReleaseVersion(github::ReleaseVersionError),
     Reqwest(reqwest::Error),
     SemVer(semver::Error),
     VersionCheck(bitbar::flavor::VersionCheckError),
@@ -51,11 +54,12 @@ impl From<Error> for Menu {
                 menu.push(MenuItem::new(format!("JSON error: {}", e)));
                 menu.push(MenuItem::new(format!("{:?}", e)));
             }
-            Error::NoLeadingV => menu.push(MenuItem::new("latest GitHub release does not include version number")),
+            Error::NoReleases(repo) => menu.push(MenuItem::new(format!("no GitHub releases for {}", repo))),
             Error::Plist(e) => {
                 menu.push(MenuItem::new(format!("error reading plist: {}", e)));
                 menu.push(MenuItem::new(format!("{:?}", e)));
             }
+            Error::ReleaseVersion(e) => menu.extend(Menu::from(e).0),
             Error::Reqwest(e) => {
                 menu.push(MenuItem::new(format!("reqwest error: {}", e)));
                 if let Some(url) = e.url() {
@@ -72,20 +76,6 @@ impl From<Error> for Menu {
             Error::VersionCheck(e) => menu.extend(Menu::from(e).0),
         }
         Menu(menu)
-    }
-}
-
-#[derive(Deserialize)]
-struct Release {
-    tag_name: String,
-}
-
-impl TryFrom<Release> for Version {
-    type Error = Error;
-
-    fn try_from(release: Release) -> Result<Version, Error> {
-        if !release.tag_name.starts_with('v') { return Err(Error::NoLeadingV); }
-        Ok(release.tag_name[1..].parse()?)
     }
 }
 
@@ -148,15 +138,13 @@ async fn homebrew_version(client: &reqwest::Client) -> Result<(&'static str, Ver
 }
 
 async fn latest_version(client: &reqwest::Client) -> Result<Version, Error> {
-    match Flavor::check() {
-        Flavor::SwiftBar(_) => client
-            .get("https://api.github.com/repos/swiftbar/SwiftBar/releases/latest")
-            .send().await?
-            .error_for_status()?
-            .json::<Release>().await?
-            .try_into(),
-        Flavor::BitBar => Ok(Version::new(1, 10, 1)), //TODO suggest moving to either SwiftBar or xbar
-    }
+    Ok(match Flavor::check() {
+        Flavor::SwiftBar(_) => Repo::new("swiftbar", "SwiftBar")
+            .latest_release(client).await?
+            .ok_or(Error::NoReleases("swiftbar/SwiftBar"))?
+            .version()?,
+        Flavor::BitBar => Version::new(1, 10, 1), //TODO suggest moving to either SwiftBar or xbar
+    })
 }
 
 #[derive(From)]
@@ -201,14 +189,19 @@ async fn main() -> Result<Menu, Error> {
     let (cask_name, homebrew) = homebrew_version(&client).await?;
     let installed = installed_version()?;
     let running = running_version()?;
-    Ok(if running < latest && Data::new()?.hide_until_homebrew_gt.map_or(true, |min_ver| homebrew > min_ver) {
+    let remote_plugin_commit_hash = github::Repo::new("fenhl", "bitbar-version").head(&client).await?.sha;
+    Ok(if version::GIT_COMMIT_HASH != remote_plugin_commit_hash || running < latest && Data::new()?.hide_until_homebrew_gt.map_or(true, |min_ver| homebrew > min_ver) {
+        let mut menu = vec![
+            ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
+            MenuItem::Sep,
+        ];
+        if version::GIT_COMMIT_HASH != remote_plugin_commit_hash {
+            menu.push(MenuItem::new("New version of this plugin available"));
+            menu.push(ContentItem::new("Update Via Cargo").command(bitbar::Command::terminal(("cargo", "install-update", "--git", "bitbar-version"))).into());
+        }
         if installed < latest {
-            let mut menu = vec![
-                ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
-                MenuItem::Sep,
-                MenuItem::new(format!("{} {} available", Flavor::check(), latest)),
-                MenuItem::new(format!("You have {}", running)),
-            ];
+            menu.push(MenuItem::new(format!("{} {} available", Flavor::check(), latest)));
+            menu.push(MenuItem::new(format!("You have {}", running)));
             if homebrew < latest {
                 menu.push(MenuItem::new(format!("Homebrew has {}", homebrew)));
             }
@@ -225,12 +218,9 @@ async fn main() -> Result<Menu, Error> {
             }
             Menu(menu)
         } else {
-            Menu(vec![
-                ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
-                MenuItem::Sep,
-                MenuItem::new(format!("Restart to update to {} {}", Flavor::check(), installed)),
-                MenuItem::new(format!("Currently running: {}", running)),
-            ])
+            menu.push(MenuItem::new(format!("Restart to update to {} {}", Flavor::check(), installed)));
+            menu.push(MenuItem::new(format!("Currently running: {}", running)));
+            Menu(menu)
         }
     } else {
         Menu::default()
