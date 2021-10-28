@@ -128,6 +128,7 @@ async fn homebrew_version(client: &reqwest::Client) -> Result<(&'static str, Ver
         Flavor::SwiftBar(_) => "swiftbar",
         Flavor::BitBar => "bitbar",
     };
+    //TODO use `brew info` subprocess instead? It seems to update faster than the API
     let version = client
         .get(format!("https://formulae.brew.sh/api/cask/{}.json", flavor_cask))
         .send().await?
