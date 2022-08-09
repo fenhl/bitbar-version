@@ -5,7 +5,6 @@ use {
     std::{
         convert::Infallible as Never,
         env::current_exe,
-        ffi::OsString,
         fmt,
         io,
         time::Duration,
@@ -17,7 +16,6 @@ use {
         MenuItem,
     },
     derive_more::From,
-    itertools::Itertools as _,
     semver::Version,
     serde::Deserialize,
     crate::{
@@ -39,7 +37,7 @@ enum Error {
     ReleaseVersion(github::ReleaseVersionError),
     Reqwest(reqwest::Error),
     SemVer(semver::Error),
-    VersionCheck(bitbar::flavor::VersionCheckError),
+    VersionCheck(bitbar::flavor::swiftbar::VersionCheckError),
 }
 
 impl From<Error> for Menu {
@@ -47,31 +45,31 @@ impl From<Error> for Menu {
         let mut menu = Vec::default();
         match e {
             Error::Io(e) => {
-                menu.push(MenuItem::new(format!("I/O error: {}", e)));
-                menu.push(MenuItem::new(format!("{:?}", e)));
+                menu.push(MenuItem::new(format!("I/O error: {e}")));
+                menu.push(MenuItem::new(format!("{e:?}")));
             }
             Error::Json(e) => {
-                menu.push(MenuItem::new(format!("JSON error: {}", e)));
-                menu.push(MenuItem::new(format!("{:?}", e)));
+                menu.push(MenuItem::new(format!("JSON error: {e}")));
+                menu.push(MenuItem::new(format!("{e:?}")));
             }
-            Error::NoReleases(repo) => menu.push(MenuItem::new(format!("no GitHub releases for {}", repo))),
+            Error::NoReleases(repo) => menu.push(MenuItem::new(format!("no GitHub releases for {repo}"))),
             Error::Plist(e) => {
-                menu.push(MenuItem::new(format!("error reading plist: {}", e)));
-                menu.push(MenuItem::new(format!("{:?}", e)));
+                menu.push(MenuItem::new(format!("error reading plist: {e}")));
+                menu.push(MenuItem::new(format!("{e:?}")));
             }
             Error::ReleaseVersion(e) => menu.extend(Menu::from(e).0),
             Error::Reqwest(e) => {
-                menu.push(MenuItem::new(format!("reqwest error: {}", e)));
+                menu.push(MenuItem::new(format!("reqwest error: {e}")));
                 if let Some(url) = e.url() {
-                    menu.push(ContentItem::new(format!("URL: {}", url))
+                    menu.push(ContentItem::new(format!("URL: {url}"))
                         .href(url.clone()).expect("failed to parse the request error URL")
                         .color("blue").expect("failed to parse the color blue")
                         .into());
                 }
             }
             Error::SemVer(e) => {
-                menu.push(MenuItem::new(format!("error parsing version: {}", e)));
-                menu.push(MenuItem::new(format!("{:?}", e)));
+                menu.push(MenuItem::new(format!("error parsing version: {e}")));
+                menu.push(MenuItem::new(format!("{e:?}")));
             }
             Error::VersionCheck(e) => menu.extend(Menu::from(e).0),
         }
@@ -130,7 +128,7 @@ async fn homebrew_version(client: &reqwest::Client) -> Result<(&'static str, Ver
     };
     //TODO use `brew info` subprocess instead? It seems to update faster than the API
     let version = client
-        .get(format!("https://formulae.brew.sh/api/cask/{}.json", flavor_cask))
+        .get(format!("https://formulae.brew.sh/api/cask/{flavor_cask}.json"))
         .send().await?
         .error_for_status()?
         .json::<BrewCask>().await?
@@ -152,31 +150,29 @@ async fn latest_version(client: &reqwest::Client) -> Result<Version, Error> {
 enum HideUntilHomebrewGtError {
     DataSave(crate::data::SaveError),
     Json(serde_json::Error),
-    NumArgs,
-    SemVer(semver::Error),
 }
 
 impl fmt::Display for HideUntilHomebrewGtError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             HideUntilHomebrewGtError::DataSave(e) => e.fmt(f),
-            HideUntilHomebrewGtError::Json(e) => write!(f, "JSON error: {}", e),
-            HideUntilHomebrewGtError::NumArgs => write!(f, "wrong number of arguments for hide_until_homebrew_gt subcommand"),
-            HideUntilHomebrewGtError::SemVer(e) => e.fmt(f),
+            HideUntilHomebrewGtError::Json(e) => write!(f, "JSON error: {e}"),
         }
     }
 }
 
 #[bitbar::command]
-fn hide_until_homebrew_gt(args: impl Iterator<Item = OsString>) -> Result<(), HideUntilHomebrewGtError> {
-    let (version,) = args.collect_tuple().ok_or(HideUntilHomebrewGtError::NumArgs)?;
+fn hide_until_homebrew_gt(version: Version) -> Result<(), HideUntilHomebrewGtError> {
     let mut data = Data::new()?;
-    data.hide_until_homebrew_gt = Some(version.to_string_lossy().parse()?);
+    data.hide_until_homebrew_gt = Some(version);
     data.save()?;
     Ok(())
 }
 
-#[bitbar::main(error_template_image = "../assets/logo.png")]
+#[bitbar::main(
+    commands(hide_until_homebrew_gt),
+    error_template_image = "../assets/logo.png",
+)]
 async fn main() -> Result<Menu, Error> {
     let current_exe = current_exe()?;
     let client = reqwest::Client::builder()
@@ -198,24 +194,24 @@ async fn main() -> Result<Menu, Error> {
         ];
         if version::GIT_COMMIT_HASH != remote_plugin_commit_hash {
             menu.push(MenuItem::new("New version of this plugin available"));
-            menu.push(ContentItem::new("Update Via Cargo").command(bitbar::Command::terminal(("cargo", "install-update", "--git", "bitbar-version"))).into());
+            menu.push(ContentItem::new("Update Via Cargo").command(bitbar::attr::Command::terminal(("cargo", "install-update", "--git", "bitbar-version"))).never_unwrap().into());
         }
         if installed < latest {
-            menu.push(MenuItem::new(format!("{} {} available", Flavor::check(), latest)));
-            menu.push(MenuItem::new(format!("You have {}", running)));
+            menu.push(MenuItem::new(format!("{} {latest} available", Flavor::check())));
+            menu.push(MenuItem::new(format!("You have {running}")));
             if homebrew < latest {
-                menu.push(MenuItem::new(format!("Homebrew has {}", homebrew)));
+                menu.push(MenuItem::new(format!("Homebrew has {homebrew}")));
             }
             if homebrew > installed {
-                menu.push(ContentItem::new(format!("Install using `brew upgrade --cask {}`", cask_name)).command(bitbar::Command::terminal(("brew", "upgrade", "--cask", cask_name))).into());
+                menu.push(ContentItem::new(format!("Install using `brew upgrade --cask {cask_name}`")).command(bitbar::attr::Command::terminal(("brew", "upgrade", "--cask", cask_name))).never_unwrap().into());
             }
             if homebrew < latest {
-                menu.push(ContentItem::new("Send Pull Request to Homebrew").command(bitbar::Command::terminal(("brew", "bump-cask-pr", "--version", latest, cask_name))).into());
+                menu.push(ContentItem::new("Send Pull Request to Homebrew").command(bitbar::attr::Command::terminal(("brew", "bump-cask-pr", "--version", latest, cask_name))).never_unwrap().into());
                 menu.push(ContentItem::new("Open GitHub Release").href(match Flavor::check() {
                     Flavor::SwiftBar(_) => "https://github.com/swiftbar/SwiftBar/releases/latest",
                     Flavor::BitBar => "https://github.com/matryer/BitBar/releases/latest",
                 }).expect("failed to parse GitHub latest release URL").into());
-                menu.push(ContentItem::new("Hide Until Homebrew Is Updated").command((current_exe.display(), "hide_until_homebrew_gt", homebrew)).into());
+                menu.push(ContentItem::new("Hide Until Homebrew Is Updated").command((current_exe.display(), "hide_until_homebrew_gt", homebrew)).never_unwrap().into());
             }
             Menu(menu)
         } else {
