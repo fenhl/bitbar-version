@@ -1,10 +1,8 @@
 use {
     std::{
-        fmt,
         fs::File,
         io,
     },
-    derive_more::From,
     semver::Version,
     serde::{
         Deserialize,
@@ -14,21 +12,11 @@ use {
 
 const PATH: &str = "bitbar/plugin-cache/bitbar-version.json";
 
-#[derive(From)]
+#[derive(Debug, thiserror::Error)]
 pub(crate) enum SaveError {
-    Basedir(xdg_basedir::Error),
-    Io(io::Error),
-    Json(serde_json::Error),
-}
-
-impl fmt::Display for SaveError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SaveError::Basedir(e) => e.fmt(f),
-            SaveError::Io(e) => write!(f, "I/O error: {}", e),
-            SaveError::Json(e) => write!(f, "JSON error: {}", e),
-        }
-    }
+    #[error(transparent)] Basedir(#[from] xdg_basedir::Error),
+    #[error(transparent)] Io(#[from] io::Error),
+    #[error(transparent)] Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]

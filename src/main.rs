@@ -5,7 +5,6 @@ use {
     std::{
         convert::Infallible as Never,
         env::current_exe,
-        fmt,
         io,
         time::Duration,
     },
@@ -15,7 +14,6 @@ use {
         Menu,
         MenuItem,
     },
-    derive_more::From,
     semver::Version,
     serde::Deserialize,
     crate::{
@@ -28,16 +26,17 @@ mod data;
 mod github;
 mod version;
 
-#[derive(Debug, From)]
+#[derive(Debug, thiserror::Error)]
 enum Error {
-    Io(io::Error),
-    Json(serde_json::Error),
+    #[error(transparent)] Io(#[from] io::Error),
+    #[error(transparent)] Json(#[from] serde_json::Error),
+    #[error(transparent)] Plist(#[from] plist::Error),
+    #[error(transparent)] ReleaseVersion(#[from] github::ReleaseVersionError),
+    #[error(transparent)] Reqwest(#[from] reqwest::Error),
+    #[error(transparent)] SemVer(#[from] semver::Error),
+    #[error(transparent)] VersionCheck(#[from] bitbar::flavor::swiftbar::VersionCheckError),
+    #[error("no GitHub releases for {0}")]
     NoReleases(&'static str),
-    Plist(plist::Error),
-    ReleaseVersion(github::ReleaseVersionError),
-    Reqwest(reqwest::Error),
-    SemVer(semver::Error),
-    VersionCheck(bitbar::flavor::swiftbar::VersionCheckError),
 }
 
 impl From<Error> for Menu {
@@ -146,19 +145,10 @@ async fn latest_version(client: &reqwest::Client) -> Result<Version, Error> {
     })
 }
 
-#[derive(From)]
+#[derive(Debug, thiserror::Error)]
 enum HideUntilHomebrewGtError {
-    DataSave(crate::data::SaveError),
-    Json(serde_json::Error),
-}
-
-impl fmt::Display for HideUntilHomebrewGtError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            HideUntilHomebrewGtError::DataSave(e) => e.fmt(f),
-            HideUntilHomebrewGtError::Json(e) => write!(f, "JSON error: {e}"),
-        }
-    }
+    #[error(transparent)] DataSave(#[from] data::SaveError),
+    #[error(transparent)] Json(#[from] serde_json::Error),
 }
 
 #[bitbar::command]
@@ -186,7 +176,7 @@ async fn main() -> Result<Menu, Error> {
     let (cask_name, homebrew) = homebrew_version(&client).await?;
     let installed = installed_version()?;
     let running = running_version()?;
-    let remote_plugin_commit_hash = github::Repo::new("fenhl", "bitbar-version").head(&client).await?.sha;
+    let remote_plugin_commit_hash = Repo::new("fenhl", "bitbar-version").head(&client).await?.sha;
     Ok(if version::GIT_COMMIT_HASH != remote_plugin_commit_hash || running < latest && Data::new()?.hide_until_homebrew_gt.map_or(true, |min_ver| homebrew > min_ver) {
         let mut menu = vec![
             ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),

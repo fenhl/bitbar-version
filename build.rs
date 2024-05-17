@@ -11,15 +11,14 @@ use {
         },
         path::Path,
     },
-    derive_more::From,
     git2::Repository,
 };
 
-#[derive(Debug, From)]
+#[derive(Debug, thiserror::Error)]
 enum Error {
-    Env(env::VarError),
-    Git(git2::Error),
-    Io(io::Error),
+    #[error(transparent)] Env(#[from] env::VarError),
+    #[error(transparent)] Git(#[from] git2::Error),
+    #[error(transparent)] Io(#[from] io::Error),
 }
 
 fn main() -> Result<(), Error> {

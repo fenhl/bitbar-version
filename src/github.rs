@@ -3,7 +3,6 @@ use {
         Menu,
         MenuItem,
     },
-    derive_more::From,
     reqwest::{
         Client,
         StatusCode,
@@ -33,21 +32,22 @@ pub(crate) struct Release {
     tag_name: String,
 }
 
-#[derive(Debug, From)]
+#[derive(Debug, thiserror::Error)]
 pub(crate) enum ReleaseVersionError {
+    #[error(transparent)] SemVer(#[from] semver::Error),
+    #[error("latest GitHub release does not include version number")]
     NoLeadingV,
-    SemVer(semver::Error),
 }
 
 impl From<ReleaseVersionError> for Menu {
     fn from(e: ReleaseVersionError) -> Menu {
         let mut menu = Vec::default();
         match e {
-            ReleaseVersionError::NoLeadingV => menu.push(MenuItem::new("latest GitHub release does not include version number")),
             ReleaseVersionError::SemVer(e) => {
                 menu.push(MenuItem::new(format!("error parsing version: {}", e)));
                 menu.push(MenuItem::new(format!("{:?}", e)));
             }
+            ReleaseVersionError::NoLeadingV => menu.push(MenuItem::new("latest GitHub release does not include version number")),
         }
         Menu(menu)
     }
