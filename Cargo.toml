@@ -5,13 +5,13 @@ authors = ["Fenhl <fenhl@fenhl.net>"]
 edition = "2021"
 
 [build-dependencies]
-git2 = "0.15"
+git2 = "0.18"
 thiserror = "1.0.60"
 
 [dependencies]
 bitbar = { version = "0.9", default-features = false, features = ["base64", "tokio"] }
 plist = "1"
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "trust-dns"] }
+reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "json", "macos-system-configuration", "rustls-tls", "trust-dns"] }
 semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
