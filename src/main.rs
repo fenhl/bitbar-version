@@ -17,17 +17,22 @@ use {
     semver::Version,
     serde::Deserialize,
     crate::{
+        config::Config,
         data::Data,
         github::Repo,
     },
 };
 
+mod config;
 mod data;
 mod github;
 mod version;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
+    #[error(transparent)] ConfigLoad(#[from] config::LoadError),
+    #[error(transparent)] DataLoad(#[from] data::LoadError),
+    #[error(transparent)] InvalidHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
     #[error(transparent)] Io(#[from] io::Error),
     #[error(transparent)] Json(#[from] serde_json::Error),
     #[error(transparent)] Plist(#[from] plist::Error),
@@ -43,6 +48,18 @@ impl From<Error> for Menu {
     fn from(e: Error) -> Menu {
         let mut menu = Vec::default();
         match e {
+            Error::ConfigLoad(e) => {
+                menu.push(MenuItem::new(format!("error loading plugin configuration: {e}")));
+                menu.push(MenuItem::new(format!("{e:?}")));
+            }
+            Error::DataLoad(e) => {
+                menu.push(MenuItem::new(format!("error loading plugin state: {e}")));
+                menu.push(MenuItem::new(format!("{e:?}")));
+            }
+            Error::InvalidHeaderValue(e) => {
+                menu.push(MenuItem::new(format!("reqwest error: {e}")));
+                menu.push(MenuItem::new(format!("{e:?}")));
+            }
             Error::Io(e) => {
                 menu.push(MenuItem::new(format!("I/O error: {e}")));
                 menu.push(MenuItem::new(format!("{e:?}")));
@@ -147,15 +164,15 @@ async fn latest_version(client: &reqwest::Client) -> Result<Version, Error> {
 
 #[derive(Debug, thiserror::Error)]
 enum HideUntilHomebrewGtError {
+    #[error(transparent)] DataLoad(#[from] data::LoadError),
     #[error(transparent)] DataSave(#[from] data::SaveError),
-    #[error(transparent)] Json(#[from] serde_json::Error),
 }
 
 #[bitbar::command]
-fn hide_until_homebrew_gt(version: Version) -> Result<(), HideUntilHomebrewGtError> {
-    let mut data = Data::new()?;
+async fn hide_until_homebrew_gt(version: Version) -> Result<(), HideUntilHomebrewGtError> {
+    let mut data = Data::load().await?;
     data.hide_until_homebrew_gt = Some(version);
-    data.save()?;
+    data.save().await?;
     Ok(())
 }
 
@@ -165,19 +182,32 @@ fn hide_until_homebrew_gt(version: Version) -> Result<(), HideUntilHomebrewGtErr
 )]
 async fn main() -> Result<Menu, Error> {
     let current_exe = current_exe()?;
-    let client = reqwest::Client::builder()
+    let config = Config::load().await?;
+    let http_client = reqwest::Client::builder()
         .user_agent(concat!("fenhl-bitbar-version/", env!("CARGO_PKG_VERSION")))
         .timeout(Duration::from_secs(30))
         .http2_prior_knowledge()
         .use_rustls_tls()
         .https_only(true)
         .build()?;
-    let latest = latest_version(&client).await?;
-    let (cask_name, homebrew) = homebrew_version(&client).await?;
+    let github_http_client = if let Some(github_token) = config.github_token { //TODO read from a config file
+        reqwest::Client::builder()
+            .user_agent(concat!("fenhl-bitbar-version/", env!("CARGO_PKG_VERSION")))
+            .default_headers([(reqwest::header::AUTHORIZATION, format!("Bearer {github_token}").parse()?)].into_iter().collect())
+            .timeout(Duration::from_secs(30))
+            .http2_prior_knowledge()
+            .use_rustls_tls()
+            .https_only(true)
+            .build()?
+    } else {
+        http_client.clone()
+    };
+    let latest = latest_version(&github_http_client).await?;
+    let (cask_name, homebrew) = homebrew_version(&http_client).await?;
     let installed = installed_version()?;
     let running = running_version()?;
-    let remote_plugin_commit_hash = Repo::new("fenhl", "bitbar-version").head(&client).await?.sha;
-    Ok(if version::GIT_COMMIT_HASH != remote_plugin_commit_hash || running < latest && Data::new()?.hide_until_homebrew_gt.map_or(true, |min_ver| homebrew > min_ver) {
+    let remote_plugin_commit_hash = Repo::new("fenhl", "bitbar-version").head(&github_http_client).await?.sha;
+    Ok(if version::GIT_COMMIT_HASH != remote_plugin_commit_hash || running < latest && Data::load().await?.hide_until_homebrew_gt.map_or(true, |min_ver| homebrew > min_ver) {
         let mut menu = vec![
             ContentItem::default().template_image(&include_bytes!("../assets/logo.png")[..]).never_unwrap().into(),
             MenuItem::Sep,

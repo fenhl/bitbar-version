@@ -16,4 +16,5 @@ semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1.0.60"
-xdg-basedir = "1"
+wheel = { git = "https://github.com/fenhl/wheel", branch = "main", version = "0.14.0", features = ["serde", "serde_json"] }
+xdg = "2.5.2"
