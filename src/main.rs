@@ -233,12 +233,11 @@ async fn main() -> Result<Menu, Error> {
                 }).expect("failed to parse GitHub latest release URL").into());
                 menu.push(ContentItem::new("Hide Until Homebrew Is Updated").command((current_exe.display(), "hide_until_homebrew_gt", homebrew)).never_unwrap().into());
             }
-            Menu(menu)
-        } else {
+        } else if running < latest {
             menu.push(MenuItem::new(format!("Restart to update to {} {}", Flavor::check(), installed)));
             menu.push(MenuItem::new(format!("Currently running: {}", running)));
-            Menu(menu)
         }
+        Menu(menu)
     } else {
         Menu::default()
     })
