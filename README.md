@@ -11,8 +11,7 @@ This is a [SwiftBar](https://swiftbar.app/) plugin that checks for available Swi
     cargo install --git=https://github.com/fenhl/bitbar-version --branch=main
     ```
 4. Create a symlink to `~/.cargo/bin/bitbar-version` into your SwiftBar plugin folder. Name it something like `bitbar-version.2m.o`, where `2m` is the rate of update checks.
-5. Refresh SwiftBar by opening a menu and pressing <kbd>⌘</kbd><kbd>R</kbd>.
-6. This plugin will also notify about availablee self-updates. To make the “Update Via Cargo” menu item work, install the updater:
+5. This plugin will also notify about available self-updates. To make the “Update Via Cargo” menu item work, install the updater:
     ```sh
     cargo install cargo-update
     ```
