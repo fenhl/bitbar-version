@@ -1,6 +1,3 @@
-#![deny(rust_2018_idioms, unused, unused_crate_dependencies, unused_import_braces, unused_lifetimes, unused_qualifications, warnings)]
-#![forbid(unsafe_code)]
-
 use {
     std::{
         convert::Infallible as Never,
@@ -32,16 +29,25 @@ mod version;
 enum Error {
     #[error(transparent)] ConfigLoad(#[from] config::LoadError),
     #[error(transparent)] DataLoad(#[from] data::LoadError),
+    #[error(transparent)] HeaderToStr(#[from] reqwest::header::ToStrError),
     #[error(transparent)] InvalidHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
     #[error(transparent)] Io(#[from] io::Error),
     #[error(transparent)] Json(#[from] serde_json::Error),
+    #[error(transparent)] ParseInt(#[from] std::num::ParseIntError),
     #[error(transparent)] Plist(#[from] plist::Error),
     #[error(transparent)] ReleaseVersion(#[from] github::ReleaseVersionError),
     #[error(transparent)] Reqwest(#[from] reqwest::Error),
     #[error(transparent)] SemVer(#[from] semver::Error),
     #[error(transparent)] VersionCheck(#[from] bitbar::flavor::swiftbar::VersionCheckError),
+    #[error(transparent)] Wheel(#[from] wheel::Error),
+    #[error("x-ratelimit-reset header is out of range for chrono::DateTime")]
+    InvalidDateTime,
+    #[error("missing x-ratelimit-reset header in GitHub error response")]
+    MissingRateLimitResetHeader,
     #[error("no GitHub releases for {0}")]
     NoReleases(&'static str),
+    #[error("attempted to send GitHub API request with streamed body")]
+    UncloneableGitHubRequest,
 }
 
 impl From<Error> for Menu {
@@ -88,6 +94,10 @@ impl From<Error> for Menu {
                 menu.push(MenuItem::new(format!("{e:?}")));
             }
             Error::VersionCheck(e) => menu.extend(Menu::from(e).0),
+            _ => {
+                menu.push(MenuItem::new(&e));
+                menu.push(MenuItem::new(format!("{e:?}")));
+            }
         }
         Menu(menu)
     }
