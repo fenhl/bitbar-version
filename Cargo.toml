@@ -19,18 +19,18 @@ lto = true
 strip = true
 
 [build-dependencies]
-git2 = "0.19"
-thiserror = "1.0.60"
+git2 = "0.20"
+thiserror = "2"
 
 [dependencies]
-bitbar = { version = "0.9", default-features = false, features = ["base64", "tokio"] }
+bitbar = { version = "0.10", default-features = false, features = ["base64", "tokio"] }
 chrono = "0.4.38"
 plist = "1"
 reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "json", "macos-system-configuration", "rustls-tls", "trust-dns"] }
 semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { package = "serde_json_path_to_error", version = "0.1" }
-thiserror = "1.0.60"
+thiserror = "2"
 tokio = { version = "1.40.0", features = ["time"] }
 wheel = { git = "https://github.com/fenhl/wheel", branch = "main", features = ["reqwest", "serde", "serde_json", "serde_json_path_to_error"] }
 xdg = "2.5.2"
