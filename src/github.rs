@@ -117,16 +117,16 @@ impl Repo {
     pub(crate) async fn head(&self, client: &Client) -> Result<Commit, Error> {
         let repo_info = client.get(&format!("https://api.github.com/repos/{}/{}", self.user, self.name))
             .send_github().await?
-            .json::<RepoInfo>().await?;
+            .json_with_text_in_error::<RepoInfo>().await?;
         Ok(client.get(&repo_info.branches_url.replace("{/branch}", &format!("/{}", repo_info.default_branch)))
             .send_github().await?
-            .json::<BranchInfo>().await?
+            .json_with_text_in_error::<BranchInfo>().await?
             .commit)
     }
 
     pub(crate) async fn latest_release(&self, client: &Client) -> Result<Option<Release>, Error> {
         Ok(match client.get(&format!("https://api.github.com/repos/{}/{}/releases/latest", self.user, self.name)).send_github().await {
-            Ok(response) => Some(response.json::<Release>().await?),
+            Ok(response) => Some(response.json_with_text_in_error::<Release>().await?),
             Err(Error::Reqwest(e)) if e.status().is_some_and(|status| status == StatusCode::NOT_FOUND) => None, // no releases yet
             Err(e) => return Err(e),
         })

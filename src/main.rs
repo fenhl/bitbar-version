@@ -13,6 +13,7 @@ use {
     },
     semver::Version,
     serde::Deserialize,
+    wheel::traits::ReqwestResponseExt as _,
     crate::{
         config::Config,
         data::Data,
@@ -156,8 +157,8 @@ async fn homebrew_version(client: &reqwest::Client) -> Result<(&'static str, Ver
     let version = client
         .get(format!("https://formulae.brew.sh/api/cask/{flavor_cask}.json"))
         .send().await?
-        .error_for_status()?
-        .json::<BrewCask>().await?
+        .detailed_error_for_status().await?
+        .json_with_text_in_error::<BrewCask>().await?
         .version;
     Ok((flavor_cask, version))
 }
