@@ -3,6 +3,7 @@ use {
         convert::Infallible as Never,
         env::current_exe,
         io,
+        str::FromStr,
         time::Duration,
     },
     bitbar::{
@@ -13,6 +14,10 @@ use {
     },
     semver::Version,
     serde::Deserialize,
+    serde_with::{
+        DisplayFromStr,
+        serde_as,
+    },
     wheel::traits::ReqwestResponseExt as _,
     crate::{
         config::Config,
@@ -104,9 +109,29 @@ impl From<Error> for Menu {
     }
 }
 
+#[serde_as]
 #[derive(Deserialize)]
 struct BrewCask {
-    version: Version,
+    #[serde_as(as = "DisplayFromStr")]
+    version: VersionWithBuild,
+}
+
+struct VersionWithBuild(Version);
+
+#[derive(Debug, thiserror::Error)]
+enum VersionWithBuildParseError {
+    #[error(transparent)] SemVer(#[from] semver::Error),
+    #[error("no comma in version with build")]
+    Split,
+}
+
+impl FromStr for VersionWithBuild {
+    type Err = VersionWithBuildParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (version, _) = s.split_once(',').ok_or(VersionWithBuildParseError::Split)?;
+        Ok(Self(version.parse()?))
+    }
 }
 
 #[derive(Deserialize)]
@@ -154,7 +179,7 @@ async fn homebrew_version(client: &reqwest::Client) -> Result<(&'static str, Ver
         Flavor::BitBar => "bitbar",
     };
     //TODO use `brew info` subprocess instead? It seems to update faster than the API
-    let version = client
+    let VersionWithBuild(version) = client
         .get(format!("https://formulae.brew.sh/api/cask/{flavor_cask}.json"))
         .send().await?
         .detailed_error_for_status().await?

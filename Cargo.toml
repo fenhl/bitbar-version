@@ -31,6 +31,7 @@ reqwest = { version = "0.12", default-features = false, features = ["charset", "
 semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { package = "serde_json_path_to_error", version = "0.1" }
+serde_with = "3.12.0"
 thiserror = "2"
 tokio = { version = "1.40.0", features = ["time"] }
 wheel = { git = "https://github.com/fenhl/wheel", branch = "main", features = ["reqwest", "serde", "serde_json", "serde_json_path_to_error"] }
