@@ -33,8 +33,6 @@ mod version;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
-    #[error(transparent)] ConfigLoad(#[from] config::LoadError),
-    #[error(transparent)] DataLoad(#[from] data::LoadError),
     #[error(transparent)] HeaderToStr(#[from] reqwest::header::ToStrError),
     #[error(transparent)] InvalidHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
     #[error(transparent)] Io(#[from] io::Error),
@@ -60,14 +58,6 @@ impl From<Error> for Menu {
     fn from(e: Error) -> Menu {
         let mut menu = Vec::default();
         match e {
-            Error::ConfigLoad(e) => {
-                menu.push(MenuItem::new(format!("error loading plugin configuration: {e}")));
-                menu.push(MenuItem::new(format!("{e:?}")));
-            }
-            Error::DataLoad(e) => {
-                menu.push(MenuItem::new(format!("error loading plugin state: {e}")));
-                menu.push(MenuItem::new(format!("{e:?}")));
-            }
             Error::InvalidHeaderValue(e) => {
                 menu.push(MenuItem::new(format!("reqwest error: {e}")));
                 menu.push(MenuItem::new(format!("{e:?}")));
@@ -198,14 +188,8 @@ async fn latest_version(client: &reqwest::Client) -> Result<Version, Error> {
     })
 }
 
-#[derive(Debug, thiserror::Error)]
-enum HideUntilHomebrewGtError {
-    #[error(transparent)] DataLoad(#[from] data::LoadError),
-    #[error(transparent)] DataSave(#[from] data::SaveError),
-}
-
 #[bitbar::command]
-async fn hide_until_homebrew_gt(version: Version) -> Result<(), HideUntilHomebrewGtError> {
+async fn hide_until_homebrew_gt(version: Version) -> wheel::Result {
     let mut data = Data::load().await?;
     data.hide_until_homebrew_gt = Some(version);
     data.save().await?;
