@@ -95,6 +95,7 @@ impl From<Error> for Menu {
                 menu.push(MenuItem::new(format!("{e:?}")));
             }
         }
+        menu.push(ContentItem::new("Refresh").refresh().into());
         Menu(menu)
     }
 }
