@@ -1,0 +1,9 @@
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=native", # for performance
+]
+
+[target.x86_64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=native", # for performance
+]

@@ -1,6 +1,6 @@
 [package]
 name = "bitbar-version"
-version = "0.1.11"
+version = "0.1.12"
 authors = ["Fenhl <fenhl@fenhl.net>"]
 edition = "2024"
 
