@@ -339,7 +339,7 @@ dependencies = [
 
 [[package]]
 name = "bitbar-version"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "bitbar",
  "chrono",

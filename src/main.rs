@@ -87,6 +87,7 @@ impl From<Error> for Menu {
                         .color("blue").expect("failed to parse the color blue")
                         .into());
                 }
+                menu.push(MenuItem::new(format!("{e:?}")));
             }
             Error::SemVer(e) => {
                 menu.push(MenuItem::new(format!("error parsing version: {e}")));
