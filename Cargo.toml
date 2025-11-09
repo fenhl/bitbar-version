@@ -1,6 +1,6 @@
 [package]
 name = "bitbar-version"
-version = "0.1.10"
+version = "0.1.11"
 authors = ["Fenhl <fenhl@fenhl.net>"]
 edition = "2024"
 
@@ -37,3 +37,6 @@ thiserror = "2"
 tokio = { version = "1.40.0", features = ["time"] }
 wheel = { git = "https://github.com/fenhl/wheel", branch = "main", features = ["reqwest", "serde_json"] }
 xdg = "3"
+
+[patch.crates-io]
+mac-notification-sys = { git = "https://github.com/h4llow3En/mac-notification-sys" } # https://github.com/h4llow3En/mac-notification-sys/issues/79#issuecomment-3500005878
